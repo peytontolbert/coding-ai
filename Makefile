@@ -1,12 +1,10 @@
-.PHONY: graph sandbox run check
+.PHONY: graph sandbox run check verify ci
 verify:
-	python - <<'PY'
-from verify.static import run_static
-from verify.tests import run_tests
-ok = run_static()
-ok = run_tests() and ok
-print('OK' if ok else 'FAIL')
-PY
+	python -c "from verify.static import run_static; import sys; sys.exit(0 if run_static() else 1)"
+	python -c "from verify.tests import run_tests; import sys; sys.exit(0 if run_tests() else 1)"
+
+ci:
+	bash scripts/ci_verify.sh
 
 graph:
 	python -m tools.code_graph ./repo

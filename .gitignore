@@ -1,1 +1,8 @@
 /repo/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+logs/
+*.db
