@@ -3,7 +3,7 @@ import sys
 import time
 from tools.code_graph import CodeGraph
 from llm_client import LLMClient
-from planning.planner import plan
+from planning.planner import plan, impacted_from_diff
 from verify.tests import run_tests
 from act.patcher import propose_and_apply
 from verify.static import run_static
@@ -75,7 +75,18 @@ def run_task(task: str) -> dict:
             test_patterns = []
         if _time_left() <= 0:
             break
-        tests_ok = run_tests(test_patterns if test_patterns else None)
+        # Prefer nodeids from CodeGraph when possible using diff
+        nodeids = None
+        try:
+            if isinstance(diff, str) and diff.strip():
+                files, impacted = impacted_from_diff(diff, graph)  # type: ignore[arg-type]
+                nodes: list[str] = []
+                for m in impacted:
+                    nodes.extend(graph.pytest_nodes_by_module.get(m, []))
+                nodeids = sorted(list(dict.fromkeys(nodes))) if nodes else None
+        except Exception:
+            nodeids = None
+        tests_ok = run_tests(test_patterns if test_patterns else None, nodeids=nodeids)
         if not tests_ok:
             state["loops"] += 1
             continue

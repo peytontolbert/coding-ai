@@ -1,10 +1,10 @@
 import os as _os
 import subprocess
-from typing import List
+from typing import List, Optional
 import os
 
 
-def run_tests(select_patterns: List[str] | None = None) -> bool:
+def run_tests(select_patterns: Optional[List[str]] = None, *, nodeids: Optional[List[str]] = None) -> bool:
     # Save junit xml to logs/ and coverage xml for later gating
     junit_path = "logs/junit.xml"
     try:
@@ -28,7 +28,10 @@ def run_tests(select_patterns: List[str] | None = None) -> bool:
             args.extend(["--cov-fail-under", str(cov_under)])
     except Exception:
         pass
-    if select_patterns:
+    # If explicit nodeids are provided, pass them as positional args
+    if nodeids:
+        args.extend(list(nodeids))
+    if (not nodeids) and select_patterns:
         for pat in select_patterns:
             args.extend(["-k", pat])
     try:
