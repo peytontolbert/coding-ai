@@ -2,6 +2,7 @@ import os
 import sys
 from tools.code_graph import CodeGraph
 from llm_client import LLMClient
+from verify.tests import run_tests
 from planning.planner import plan
 from act.patcher import propose_and_apply
 from verify.static import run_static
@@ -28,7 +29,12 @@ def run_task(task: str) -> dict:
         if not static_ok:
             state["loops"] += 1
             continue
-        tests_ok = run_tests()
+        # Prefer selective tests from plan if available
+        try:
+            test_patterns = p.get("tests_to_run", []) if isinstance(p.get("tests_to_run", []), list) else []
+        except Exception:
+            test_patterns = []
+        tests_ok = run_tests(test_patterns if test_patterns else None)
         if not tests_ok:
             state["loops"] += 1
             continue
