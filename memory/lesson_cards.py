@@ -57,6 +57,8 @@ def _score(query: Dict[str, Any], item: Dict[str, Any]) -> float:
 
 def retrieve_lessons(query: Dict[str, Any], k: int = 5) -> List[Dict[str, Any]]:
     items = _load_all()
-    scored: List[Tuple[float, Dict[str, Any]]] = [(_score(query, it), it) for it in items]
+    scored: List[Tuple[float, Dict[str, Any]]] = [
+        (_score(query, it), it) for it in items
+    ]
     scored.sort(key=lambda x: x[0], reverse=True)
     return [it for s, it in scored[: max(0, int(k))] if s > 0.0]

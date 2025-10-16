@@ -38,7 +38,8 @@ def run_static() -> bool:
     gates = (
         ["ruff", "check", "."],
         ["black", "--check", "."],
-        ["mypy", "--strict", "."],
+        # Rely on mypy.ini 'files' to scope targets
+        ["mypy", "--strict"],
     )
     for cmd in gates:
         if shutil.which(cmd[0]) is None:
