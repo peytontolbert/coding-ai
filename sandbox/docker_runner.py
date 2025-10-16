@@ -15,22 +15,25 @@ def run_in_sandbox(
     # Read sandbox config
     cfg_path = Path(os.getcwd()) / "configs" / "sandbox.yaml"
     image = "python:3.11-slim"
-    limits = {"cpus": "2", "memory": "4g"}
+    limits: Dict[str, str] = {"cpus": "2", "memory": "4g"}
     enabled = False
-    default_mounts = mounts or []
+    default_mounts: List[Dict[str, str]] = list(mounts) if mounts else []
     try:
         import yaml  # type: ignore
 
         if cfg_path.exists():
             data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
             enabled = bool(data.get("enabled", False))
-            image = data.get("image", image)
-            limits = data.get("limits", limits) or limits
+            image = str(data.get("image", image))
+            ld = data.get("limits", limits) or limits
+            # coerce to str->str map
+            limits = {str(k): str(v) for k, v in (ld or {}).items()}
             for m in data.get("mounts", []) or []:
                 if isinstance(m, dict):
-                    default_mounts.append(
-                        {"source": m.get("source"), "target": m.get("target")}
-                    )
+                    s = m.get("source")
+                    t = m.get("target")
+                    if isinstance(s, str) and isinstance(t, str) and s and t:
+                        default_mounts.append({"source": s, "target": t})
     except Exception:
         pass
 
@@ -68,7 +71,9 @@ def run_in_sandbox(
         if workdir:
             argv += ["-w", workdir]
         # Env
-        merged_env = {**os.environ, **(env or {})}
+        merged_env: Dict[str, str] = dict(os.environ)
+        if env:
+            merged_env.update(env)
         # Always pass through a safe subset of env vars
         for k, v in merged_env.items():
             if (

@@ -176,7 +176,7 @@ class CodeGraph:
             import subprocess
 
             out = subprocess.check_output(["rg", "-n", pattern, self.root], text=True)
-            rows = []
+            rows: List[Tuple[str, int, str]] = []
             for line in out.splitlines():
                 try:
                     fp, ln, txt = line.split(":", 2)
@@ -463,7 +463,7 @@ class CodeGraph:
         except Exception:
             pass
         if params:
-            count = 1
+            count: int = 1
             for k in params:
                 try:
                     count *= int(k)

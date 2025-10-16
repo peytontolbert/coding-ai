@@ -69,7 +69,7 @@ def propose_and_apply(*, plan: Dict[str, Any], graph: Any, llm: Any) -> str:
     except Exception:
         pass
     prompt = plan.get("objective", "")
-    diff = llm.generate_diff(prompt=prompt, context=context)
+    diff = str(llm.generate_diff(prompt=prompt, context=context) or "")
     repo_root = os.environ.get("CODE_REPO", "./repo")
     # Prefer safe actuator that applies in temp clone with 3-way and hunk splitting
     try:
@@ -82,7 +82,7 @@ def propose_and_apply(*, plan: Dict[str, Any], graph: Any, llm: Any) -> str:
             ok, _ = apply_diff_unified(diff, repo_root=os.path.abspath(str(repo_root)))
             if not ok:
                 return diff
-        return res.refined_diff if res.refined_diff.strip() else diff
+        return res.refined_diff if str(res.refined_diff).strip() else diff
     except Exception:
         ok, _ = apply_diff_unified(diff, repo_root=os.path.abspath(str(repo_root)))
         if not ok:
