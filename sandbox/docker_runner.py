@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 import os
 import subprocess
 from pathlib import Path
@@ -10,17 +10,20 @@ def run_in_sandbox(
     mounts: List[Dict[str, str]] | None = None,
     env: Dict[str, str] | None = None,
     timeout: int | None = None,
+    workdir: Optional[str] = None,
 ) -> int:
     # Read sandbox config
     cfg_path = Path(os.getcwd()) / "configs" / "sandbox.yaml"
     image = "python:3.11-slim"
     limits = {"cpus": "2", "memory": "4g"}
+    enabled = False
     default_mounts = mounts or []
     try:
         import yaml  # type: ignore
 
         if cfg_path.exists():
             data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            enabled = bool(data.get("enabled", False))
             image = data.get("image", image)
             limits = data.get("limits", limits) or limits
             for m in data.get("mounts", []) or []:
@@ -42,7 +45,7 @@ def run_in_sandbox(
     except Exception:
         docker_ok = False
 
-    if docker_ok:
+    if docker_ok and enabled:
         argv = [
             "docker",
             "run",
@@ -61,13 +64,24 @@ def run_in_sandbox(
             t = m.get("target")
             if s and t:
                 argv += ["-v", f"{os.path.abspath(s)}:{t}"]
+        # Working directory inside container
+        if workdir:
+            argv += ["-w", workdir]
         # Env
         merged_env = {**os.environ, **(env or {})}
+        # Always pass through a safe subset of env vars
         for k, v in merged_env.items():
             if (
                 k
                 and v is not None
-                and k in ("PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED", "PATH")
+                and k
+                in (
+                    "PYTHONDONTWRITEBYTECODE",
+                    "PYTHONUNBUFFERED",
+                    "PATH",
+                    "PER_STEP_SECONDS",
+                    "COV_FAIL_UNDER",
+                )
             ):
                 argv += ["-e", f"{k}={v}"]
         argv += [image] + cmd

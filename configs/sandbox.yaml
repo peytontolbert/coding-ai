@@ -1,3 +1,12 @@
+enabled: false
+image: python:3.11-slim
+limits:
+  cpus: "2"
+  memory: "4g"
+# Additional mounts appended to the default current working directory mount at /work
+mounts:
+  - source: ./
+    target: /work
 image: "python:3.11-slim"
 limits:
   cpus: "2"

@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["feature/actuator-safe-apply", "main", "develop"]
+    branches: ["feature/**", "main", "develop"]
   pull_request:
     branches: ["main", "develop"]
 
