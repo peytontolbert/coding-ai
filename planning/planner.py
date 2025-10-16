@@ -1,4 +1,5 @@
 from typing import Any, Dict, List
+from tools.code_graph import CodeGraph
 
 
 def _extract_modules_from_task(task: str) -> List[str]:
@@ -23,7 +24,22 @@ def _tests_for_modules(graph: Any, modules: List[str]) -> List[str]:
 
 def plan(*, task: str, graph: Any) -> Dict[str, Any]:
     mods = _extract_modules_from_task(task)
-    tests = _tests_for_modules(graph, mods)
+    # Expand impacted modules via reverse imports
+    impacted: List[str] = []
+    try:
+        if isinstance(graph, CodeGraph):
+            # For each mentioned module, include modules that import it (reverse deps)
+            rev = set()
+            for m in mods:
+                for mod, deps in getattr(graph, "module_imports", {}).items():
+                    if m in deps or m.split(".")[0] in deps:
+                        rev.add(mod)
+            impacted = sorted(set(mods) | rev)
+        else:
+            impacted = mods
+    except Exception:
+        impacted = mods
+    tests = _tests_for_modules(graph, impacted)
     return {
         "objective": task,
         "files": [],
@@ -31,5 +47,3 @@ def plan(*, task: str, graph: Any) -> Dict[str, Any]:
         "tests_to_run": tests,
         "risks": [],
     }
-
-

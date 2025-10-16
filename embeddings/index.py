@@ -9,5 +9,3 @@ def build_index(chunks: List[str]) -> None:
 def search(query: str, k: int = 5) -> List[Tuple[int, float]]:
     # Stub: return (chunk_id, score)
     return []
-
-

@@ -2,7 +2,7 @@ import os
 import ast
 import re
 import json
-import time
+import time  # noqa: F401
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -27,7 +27,9 @@ class ModuleInfo:
     module: str
     file: str
     is_test: bool = False
-    imports: Dict[str, str] = field(default_factory=dict)  # alias -> target (module or module.symbol)
+    imports: Dict[str, str] = field(
+        default_factory=dict
+    )  # alias -> target (module or module.symbol)
     defs: List[str] = field(default_factory=list)  # list of symbol FQNs
     exports: List[str] = field(default_factory=list)  # names from __all__
 
@@ -59,7 +61,9 @@ class CodeGraph:
         cache_path = os.path.join(self.root, ".codegraph.json")
         if (not ignore_cache) and self._load_cache_relaxed(cache_path):
             # Incremental: reindex changed and dependents
-            changed, removed = self._detect_changed_files(self._cached_mtimes, self._cached_hashes)
+            changed, removed = self._detect_changed_files(
+                self._cached_mtimes, self._cached_hashes
+            )
             if not changed and not removed:
                 return
             self._incremental_reindex(changed, removed)
@@ -92,17 +96,33 @@ class CodeGraph:
     def _add_symbol(self, sym: Symbol) -> None:
         self.symbols_by_fqn[sym.fqn] = sym
         self.symbols_by_name.setdefault(sym.name, []).append(sym.fqn)
-        mi = self.modules.setdefault(sym.module, ModuleInfo(module=sym.module, file=sym.file))
+        mi = self.modules.setdefault(
+            sym.module, ModuleInfo(module=sym.module, file=sym.file)
+        )
         if sym.fqn not in mi.defs:
             mi.defs.append(sym.fqn)
 
     def _index_module(self, path: str, tree: ast.AST) -> None:
         module = self._module_name_for_path(path)
         is_test = ("/tests/" in path) or (os.path.basename(path).startswith("test_"))
-        self.modules.setdefault(module, ModuleInfo(module=module, file=path, is_test=is_test))
+        self.modules.setdefault(
+            module, ModuleInfo(module=module, file=path, is_test=is_test)
+        )
         # Add module symbol
         mod_fqn = module
-        self._add_symbol(Symbol(fqn=mod_fqn, name=os.path.basename(path), qualname="", kind="module", module=module, file=path, line=1, end_line=1))
+        mod_name = module.split(".")[-1]
+        self._add_symbol(
+            Symbol(
+                fqn=mod_fqn,
+                name=mod_name,
+                qualname="",
+                kind="module",
+                module=module,
+                file=path,
+                line=1,
+                end_line=1,
+            )
+        )
         # Visit
         visitor = _ModuleVisitor(module, path)
         visitor.visit(tree)
@@ -128,7 +148,9 @@ class CodeGraph:
 
     def owners_of(self, symbol: str) -> List[str]:
         fqns = self.symbols_by_name.get(symbol, [])
-        return sorted({os.path.relpath(self.symbols_by_fqn[f].file, self.root) for f in fqns})
+        return sorted(
+            {os.path.relpath(self.symbols_by_fqn[f].file, self.root) for f in fqns}
+        )
 
     def find_symbol(self, name: str) -> List[Symbol]:
         return [self.symbols_by_fqn[f] for f in self.symbols_by_name.get(name, [])]
@@ -152,6 +174,7 @@ class CodeGraph:
         """Ripgrep-based raw reference search (file, line_no, text)."""
         try:
             import subprocess
+
             out = subprocess.check_output(["rg", "-n", pattern, self.root], text=True)
             rows = []
             for line in out.splitlines():
@@ -223,13 +246,17 @@ class CodeGraph:
             "modules": {k: self._mi_to_dict(v) for k, v in self.modules.items()},
             "calls": self.calls,
             "module_to_tests": self.module_to_tests,
-            "coverage_files": {os.path.relpath(k, self.root): sorted(list(v)) for k, v in self.coverage_files.items()},
+            "coverage_files": {
+                os.path.relpath(k, self.root): sorted(list(v))
+                for k, v in self.coverage_files.items()
+            },
             "symbol_coverage": self.symbol_coverage,
             "module_imports": self.module_imports,
         }
 
     def export_sqlite(self, db_path: str) -> None:
         import sqlite3
+
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
         cur.executescript(
@@ -247,10 +274,16 @@ class CodeGraph:
             CREATE TABLE IF NOT EXISTS mod_deps(module TEXT, dep TEXT);
             """
         )
-        cur.executemany("INSERT OR IGNORE INTO files(path) VALUES(?)", [(os.path.relpath(f, self.root),) for f in self.indexed_files])
+        cur.executemany(
+            "INSERT OR IGNORE INTO files(path) VALUES(?)",
+            [(os.path.relpath(f, self.root),) for f in self.indexed_files],
+        )
         cur.executemany(
             "INSERT OR REPLACE INTO modules(module,file,is_test) VALUES(?,?,?)",
-            [(m, os.path.relpath(mi.file, self.root), 1 if mi.is_test else 0) for m, mi in self.modules.items()],
+            [
+                (m, os.path.relpath(mi.file, self.root), 1 if mi.is_test else 0)
+                for m, mi in self.modules.items()
+            ],
         )
         cur.executemany(
             "INSERT OR REPLACE INTO symbols VALUES(?,?,?,?,?,?,?,?,?,?,?)",
@@ -272,13 +305,17 @@ class CodeGraph:
             ],
         )
         if self.calls:
-            cur.executemany("INSERT INTO calls(caller,callee) VALUES(?,?)", list(self.calls))
+            cur.executemany(
+                "INSERT INTO calls(caller,callee) VALUES(?,?)", list(self.calls)
+            )
         rows = []
         for mod, tests in self.module_to_tests.items():
             for t in tests:
                 rows.append((mod, t))
         if rows:
-            cur.executemany("INSERT INTO tests_map(module,test_module) VALUES(?,?)", rows)
+            cur.executemany(
+                "INSERT INTO tests_map(module,test_module) VALUES(?,?)", rows
+            )
         cov_rows = []
         for f, lines in self.coverage_files.items():
             rel = os.path.relpath(f, self.root)
@@ -302,29 +339,25 @@ class CodeGraph:
             parts = parts[:-1]
         return ".".join(p for p in parts if p)
 
-    def _resolve_callee(self, module: str, callee_key: str, visitor: "_ModuleVisitor") -> Optional[str]:
-        # callee_key formats:
-        # - name            (simple)
-        # - module:name     (imported module attribute)
-        # - class.name      (local class method)
+    def _resolve_callee(
+        self, module: str, callee_key: str, visitor: "_ModuleVisitor"
+    ) -> Optional[str]:
         if "." in callee_key and ":" not in callee_key:
-            # class.attr or module.symbol already
-            # If it starts with current module, return as-is
-            return callee_key if callee_key.startswith(module + ".") else callee_key
+            return callee_key
+
         if ":" in callee_key:
             mod_alias, name = callee_key.split(":", 1)
             target = visitor.imports.get(mod_alias)
             if target:
-                # if target is module, join; if module.symbol, respect
-                if "." in target:
-                    return target
-                return f"{target}.{name}"
-        # simple name: resolve within module
-        # Prefer exact match within module defs
-        for f in self.modules.get(module, ModuleInfo(module=module, file="")).defs:
-            if f.split(".")[-1] == callee_key:
-                return f
-        # resolve via imported symbol aliases
+                return f"{target}.{name}" if not target.endswith(f".{name}") else target
+
+        mi = self.modules.get(module)
+        if mi:
+            # Prefer any def with same suffix name (matches within class or function)
+            for f in mi.defs:
+                if f.split(".")[-1] == callee_key:
+                    return f
+
         tgt = visitor.imports.get(callee_key)
         if tgt:
             return tgt
@@ -340,22 +373,30 @@ class CodeGraph:
                 self.module_to_tests.setdefault(m, []).append(mod)
 
     def _expand_star_imports(self) -> None:
-        # For modules with star imports, expand to symbol-level imports for resolution
         for mod, stars in self.module_star_imports.items():
-            if not stars:
-                continue
             mi = self.modules.get(mod)
             if not mi:
                 continue
             for star_mod in stars:
-                # If star_mod is a module we've indexed, import its defs
-                defs = [f for f in self.modules.get(star_mod, ModuleInfo(module=star_mod, file="")).defs]
-                exports = set(self.modules.get(star_mod, ModuleInfo(module=star_mod, file="")).exports or [])
+                defs = [
+                    f
+                    for f in self.modules.get(
+                        star_mod, ModuleInfo(module=star_mod, file="")
+                    ).defs
+                ]
+                exports = set(
+                    self.modules.get(
+                        star_mod, ModuleInfo(module=star_mod, file="")
+                    ).exports
+                    or []
+                )
                 for fqn in defs:
                     name = fqn.split(".")[-1]
-                    if exports and name not in exports:
+                    if exports:
+                        if name not in exports:
+                            continue
+                    elif name.startswith("_"):
                         continue
-                    # Don't overwrite explicit imports
                     if name not in mi.imports:
                         mi.imports[name] = f"{star_mod}.{name}"
 
@@ -368,7 +409,9 @@ class CodeGraph:
                 continue
             # Find caller module
             caller_mod = caller.rsplit(".", 1)[0] if "." in caller else caller
-            imports = self.modules.get(caller_mod, ModuleInfo(module=caller_mod, file="")).imports
+            imports = self.modules.get(
+                caller_mod, ModuleInfo(module=caller_mod, file="")
+            ).imports
             tgt = imports.get(callee)
             if tgt:
                 new_calls.append((caller, tgt))
@@ -376,6 +419,13 @@ class CodeGraph:
                 # leave as-is
                 new_calls.append((caller, callee))
         self.calls = new_calls
+
+    def unresolved_calls(self) -> List[Tuple[str, str]]:
+        return [
+            (a, c)
+            for (a, c) in self.calls
+            if "." not in c and not self._is_builtin_name(c)
+        ]
 
     def _collect_pytest_nodes(self, tree: ast.AST, rel_path: str) -> List[str]:
         nodes: List[str] = []
@@ -390,17 +440,25 @@ class CodeGraph:
                         nodes.extend(self._expand_parametrize(rel_path, cls, m))
         return nodes
 
-    def _expand_parametrize(self, rel_path: str, cls: Optional[str], fn: ast.FunctionDef) -> List[str]:
+    def _expand_parametrize(
+        self, rel_path: str, cls: Optional[str], fn: ast.FunctionDef
+    ) -> List[str]:
         base = f"{rel_path}::" + (f"{cls}::" if cls else "") + fn.name
         # Look for @pytest.mark.parametrize("arg", [vals])
         total: List[str] = []
         params: List[int] = []
         try:
-            for dec in getattr(fn, 'decorator_list', []) or []:
+            for dec in getattr(fn, "decorator_list", []) or []:
                 # pytest.mark.parametrize(...)
-                if isinstance(dec, ast.Call) and isinstance(dec.func, ast.Attribute) and dec.func.attr == 'parametrize':
+                if (
+                    isinstance(dec, ast.Call)
+                    and isinstance(dec.func, ast.Attribute)
+                    and dec.func.attr == "parametrize"
+                ):
                     # estimate number of cases from second arg list length
-                    if len(dec.args) >= 2 and isinstance(dec.args[1], (ast.List, ast.Tuple)):
+                    if len(dec.args) >= 2 and isinstance(
+                        dec.args[1], (ast.List, ast.Tuple)
+                    ):
                         params.append(len(dec.args[1].elts))
         except Exception:
             pass
@@ -468,24 +526,30 @@ class CodeGraph:
             self.calls = [tuple(x) for x in data.get("calls", [])]
             self.module_to_tests = data.get("module_to_tests", {})
             self.module_imports = data.get("module_imports", {})
-            self._cached_mtimes = {k: int(v) for k, v in (data.get("mtimes", {}) or {}).items()}
-            self._cached_hashes = {k: str(v) for k, v in (data.get("hashes", {}) or {}).items()}
+            self._cached_mtimes = {
+                k: int(v) for k, v in (data.get("mtimes", {}) or {}).items()
+            }
+            self._cached_hashes = {
+                k: str(v) for k, v in (data.get("hashes", {}) or {}).items()
+            }
             return True
         except Exception:
             return False
 
-    def _detect_changed_files(self, old_mt: Dict[str, int], old_hh: Dict[str, str]) -> Tuple[List[str], List[str]]:
+    def _detect_changed_files(
+        self, old_mt: Dict[str, int], old_hh: Dict[str, str]
+    ) -> Tuple[List[str], List[str]]:
         curr_files: List[str] = []
         for dirpath, _, filenames in os.walk(self.root):
             for fn in filenames:
-                if fn.endswith('.py'):
+                if fn.endswith(".py"):
                     curr_files.append(os.path.join(dirpath, fn))
         curr = set(curr_files)
         prev = set(self.indexed_files or [])
         removed = list(prev - curr)
         added = list(curr - prev)
         changed: List[str] = list(added)
-        for f in (curr & prev):
+        for f in curr & prev:
             try:
                 mt = int(os.path.getmtime(f))
                 hh = self._file_hash(f)
@@ -497,17 +561,25 @@ class CodeGraph:
         self.indexed_files = sorted(list(curr))
         return sorted(set(changed)), sorted(removed)
 
-    def _incremental_reindex(self, changed_files: List[str], removed_files: List[str]) -> None:
+    def _incremental_reindex(
+        self, changed_files: List[str], removed_files: List[str]
+    ) -> None:
         # purge removed modules
         for f in removed_files:
             m = self._module_name_for_path(f)
             if m in self.modules:
-                to_remove = [fqn for fqn, s in list(self.symbols_by_fqn.items()) if s.module == m]
+                to_remove = [
+                    fqn for fqn, s in list(self.symbols_by_fqn.items()) if s.module == m
+                ]
                 for fqn in to_remove:
                     s = self.symbols_by_fqn.pop(fqn, None)
                     if s:
-                        self.symbols_by_name[s.name] = [x for x in self.symbols_by_name.get(s.name, []) if x != fqn]
-                self.calls = [(a, b) for (a, b) in self.calls if not a.startswith(m + '.')]
+                        self.symbols_by_name[s.name] = [
+                            x for x in self.symbols_by_name.get(s.name, []) if x != fqn
+                        ]
+                self.calls = [
+                    (a, b) for (a, b) in self.calls if not a.startswith(m + ".")
+                ]
                 self.modules.pop(m, None)
                 self.module_imports.pop(m, None)
                 self.module_star_imports.pop(m, None)
@@ -537,7 +609,9 @@ class CodeGraph:
         if not mi:
             return
         # remove existing symbols and calls for this module
-        to_remove = [fqn for fqn, s in self.symbols_by_fqn.items() if s.module == module]
+        to_remove = [
+            fqn for fqn, s in self.symbols_by_fqn.items() if s.module == module
+        ]
         for fqn in to_remove:
             s = self.symbols_by_fqn.pop(fqn, None)
             if s:
@@ -595,6 +669,9 @@ class CodeGraph:
             "file": s.file,
             "line": s.line,
             "end_line": s.end_line,
+            "doc": s.doc,
+            "signature": s.signature,
+            "returns": s.returns,
         }
 
     def _mi_to_dict(self, mi: ModuleInfo) -> Dict[str, Any]:
@@ -610,18 +687,51 @@ class CodeGraph:
     def _is_builtin_name(self, name: str) -> bool:
         try:
             import builtins as _bi  # type: ignore
+
             if hasattr(_bi, name):
                 return True
         except Exception:
             pass
         return name in {
-            "super","property","globals","locals","__import__","print","len","range","dict","list","set","tuple","int","float","bool","max","min","sum","open","enumerate","zip","map","filter","round","any","all","sorted","hasattr","getattr","setattr","isinstance","issubclass"
+            "super",
+            "property",
+            "globals",
+            "locals",
+            "__import__",
+            "print",
+            "len",
+            "range",
+            "dict",
+            "list",
+            "set",
+            "tuple",
+            "int",
+            "float",
+            "bool",
+            "max",
+            "min",
+            "sum",
+            "open",
+            "enumerate",
+            "zip",
+            "map",
+            "filter",
+            "round",
+            "any",
+            "all",
+            "sorted",
+            "hasattr",
+            "getattr",
+            "setattr",
+            "isinstance",
+            "issubclass",
         }
 
     def _file_hash(self, path: str) -> str:
         try:
             import hashlib
-            with open(path, 'rb') as rf:
+
+            with open(path, "rb") as rf:
                 return hashlib.sha1(rf.read()).hexdigest()
         except Exception:
             return ""
@@ -631,6 +741,7 @@ class CodeGraph:
     def attach_coverage_from_xml(self, xml_path: str) -> None:
         try:
             import xml.etree.ElementTree as ET
+
             tree = ET.parse(xml_path)
             root = tree.getroot()
             files_hits: Dict[str, set[int]] = {}
@@ -640,7 +751,11 @@ class CodeGraph:
                 if not fn:
                     continue
                 # Normalize to absolute path
-                f_abs = fn if os.path.isabs(fn) else os.path.abspath(os.path.join(self.root, fn))
+                f_abs = (
+                    fn
+                    if os.path.isabs(fn)
+                    else os.path.abspath(os.path.join(self.root, fn))
+                )
                 hits = files_hits.setdefault(f_abs, set())
                 for ln in cls.findall(".//line"):
                     try:
@@ -650,6 +765,26 @@ class CodeGraph:
                             hits.add(num)
                     except Exception:
                         continue
+            # Some coverage.xml variants place <file> nodes
+            if not files_hits:
+                for fnode in root.findall(".//file"):
+                    fn = fnode.attrib.get("filename", "")
+                    if not fn:
+                        continue
+                    f_abs = (
+                        fn
+                        if os.path.isabs(fn)
+                        else os.path.abspath(os.path.join(self.root, fn))
+                    )
+                    hits = files_hits.setdefault(f_abs, set())
+                    for ln in fnode.findall(".//line"):
+                        try:
+                            num = int(ln.attrib.get("number", "0"))
+                            h = int(ln.attrib.get("hits", "0"))
+                            if h > 0:
+                                hits.add(num)
+                        except Exception:
+                            continue
             self.coverage_files = files_hits
             # Compute per-symbol coverage
             sym_cov: Dict[str, float] = {}
@@ -674,7 +809,9 @@ class CodeGraph:
 
 
 def _cli() -> None:
-    import argparse, json
+    import argparse
+    import json
+
     p = argparse.ArgumentParser()
     p.add_argument("root", nargs="?", default="./repo")
     p.add_argument("--owners-of", dest="owners_of", default=None)
@@ -746,17 +883,20 @@ def _cli() -> None:
         print(json.dumps(g.module_imports.get(args.module_deps, [])))
         return
     if args.unresolved:
-        # report calls without a dot (still unresolved after post-resolve), minus builtins
-        print(json.dumps([(a, c) for (a, c) in g.calls if '.' not in c and (not hasattr(g, '_is_builtin_name') or not g._is_builtin_name(c))]))
+        print(json.dumps(g.unresolved_calls()))
         return
     if args.dump:
-        print(json.dumps({
-            "files": len(g.indexed_files),
-            "symbols": len(g.symbols_by_fqn),
-            "modules": len(g.modules),
-            "calls": len(g.calls),
-            "coverage_files": len(g.coverage_files),
-        }))
+        print(
+            json.dumps(
+                {
+                    "files": len(g.indexed_files),
+                    "symbols": len(g.symbols_by_fqn),
+                    "modules": len(g.modules),
+                    "calls": len(g.calls),
+                    "coverage_files": len(g.coverage_files),
+                }
+            )
+        )
         return
     # Dump summary
     print(json.dumps({"files": len(g.indexed_files), "symbols": len(g.symbols_by_fqn)}))
@@ -769,6 +909,7 @@ class _ModuleVisitor(ast.NodeVisitor):
         self.symbols: List[Symbol] = []
         self.calls: List[Tuple[str, str]] = []  # (caller_fqn, callee_key)
         self.stack: List[str] = []  # qualname stack
+        self.class_stack: List[str] = []
         self.imports: Dict[str, str] = {}
         self.import_modules: List[str] = []
         self.star_imports: List[str] = []
@@ -776,6 +917,9 @@ class _ModuleVisitor(ast.NodeVisitor):
 
     def _cur_qualname(self) -> str:
         return ".".join(self.stack)
+
+    def _cur_class(self) -> Optional[str]:
+        return self.class_stack[-1] if self.class_stack else None
 
     def _fqn(self, name: str) -> str:
         q = self._cur_qualname()
@@ -803,7 +947,7 @@ class _ModuleVisitor(ast.NodeVisitor):
             mod = node.module or ""
         for alias in node.names:
             # star import
-            if getattr(alias, 'name', '') == '*':
+            if getattr(alias, "name", "") == "*":
                 if mod:
                     self.star_imports.append(mod)
                 continue
@@ -832,7 +976,9 @@ class _ModuleVisitor(ast.NodeVisitor):
         )
         self.symbols.append(sym)
         self.stack.append(node.name)
+        self.class_stack.append(node.name)
         self.generic_visit(node)
+        self.class_stack.pop()
         self.stack.pop()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:  # type: ignore[override]
@@ -882,7 +1028,7 @@ class _ModuleVisitor(ast.NodeVisitor):
                 if callee_key:
                     self.calls.append((fqn, callee_key))
         # Decorators as calls
-        for dec in getattr(node, 'decorator_list', []) or []:
+        for dec in getattr(node, "decorator_list", []) or []:
             callee_key = self._extract_callee_key(dec)
             if callee_key:
                 self.calls.append((fqn, callee_key))
@@ -906,7 +1052,9 @@ class _ModuleVisitor(ast.NodeVisitor):
         # capture __all__ = ["..."]
         try:
             names = []
-            is_all = any((isinstance(t, ast.Name) and t.id == "__all__") for t in node.targets)
+            is_all = any(
+                (isinstance(t, ast.Name) and t.id == "__all__") for t in node.targets
+            )
             if is_all and isinstance(node.value, (ast.List, ast.Tuple)):
                 for el in node.value.elts:
                     if isinstance(el, ast.Constant) and isinstance(el.value, str):
@@ -921,38 +1069,65 @@ class _ModuleVisitor(ast.NodeVisitor):
         # simple name
         if isinstance(fn, ast.Name):
             return fn.id
-        # module.attr or class.method style
+
+        # super().method()
+        if (
+            isinstance(fn, ast.Attribute)
+            and isinstance(fn.value, ast.Call)
+            and isinstance(fn.value.func, ast.Name)
+            and fn.value.func.id == "super"
+        ):
+            meth = fn.attr
+            cur_cls = self._cur_class()
+            if cur_cls:
+                return f"{self.module}.{cur_cls}.{meth}"
+            return meth
+
+        # obj.attr chain
         if isinstance(fn, ast.Attribute):
-            # gather chain
             parts: List[str] = []
-            cur: Any = fn
+            cur = fn
             while isinstance(cur, ast.Attribute):
                 parts.append(cur.attr)
                 cur = cur.value
+            parts.reverse()
+
             if isinstance(cur, ast.Name):
                 base = cur.id
-                parts.reverse()
-                # If base is an import alias to a module, mark as module:name
+                if base in ("self", "cls"):
+                    cur_cls = self._cur_class()
+                    if cur_cls and parts:
+                        return f"{self.module}.{cur_cls}.{parts[-1]}"
+                    return f"{self.module}.{cur_cls}" if cur_cls else parts[-1]
                 if base in self.imports:
                     return f"{base}:{parts[-1]}" if parts else base
-                # else treat as Class.method
                 return f"{self.module}.{base}.{parts[-1]}" if parts else base
         # getattr(module, "name") heuristic
-        if isinstance(fn, ast.Call) and isinstance(fn.func, ast.Name) and fn.func.id == 'getattr':
-            args = fn.args or []
-            if len(args) >= 2 and isinstance(args[0], ast.Name) and isinstance(args[1], ast.Constant) and isinstance(args[1].value, str):
-                base = args[0].id
-                name = args[1].value
-                if base in self.imports:
-                    return f"{self.imports[base]}.{name}"
-                return f"{self.module}.{base}.{name}"
+        if (
+            isinstance(fn, ast.Call)
+            and isinstance(fn.func, ast.Name)
+            and fn.func.id == "getattr"
+            and fn.args
+            and len(fn.args) >= 2
+            and isinstance(fn.args[0], ast.Name)
+            and isinstance(fn.args[1], ast.Constant)
+            and isinstance(fn.args[1].value, str)
+        ):
+            base = fn.args[0].id
+            name = fn.args[1].value
+            if base in self.imports:
+                return f"{self.imports[base]}.{name}"
+            cur_cls = self._cur_class()
+            if base in ("self", "cls") and cur_cls:
+                return f"{self.module}.{cur_cls}.{name}"
+            return f"{self.module}.{base}.{name}"
         # importlib.import_module("pkg.mod") heuristic
         if (
             isinstance(fn, ast.Call)
             and isinstance(fn.func, ast.Attribute)
             and isinstance(fn.func.value, ast.Name)
-            and fn.func.value.id == 'importlib'
-            and fn.func.attr == 'import_module'
+            and fn.func.value.id == "importlib"
+            and fn.func.attr == "import_module"
             and fn.args
             and isinstance(fn.args[0], ast.Constant)
             and isinstance(fn.args[0].value, str)
@@ -964,5 +1139,3 @@ class _ModuleVisitor(ast.NodeVisitor):
 
 if __name__ == "__main__":
     _cli()
-
-

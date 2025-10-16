@@ -28,7 +28,7 @@ export HF_MODEL_ID=meta-llama/Meta-Llama-3-8B-Instruct
 ### Directory layout
 - `runner.py`: Orchestrator.
 - `planning/`: `planner.py` builds step specs (objective, files, tests, risks).
-- `act/`: `patcher.py` proposes and applies unified diffs (dry-run first).
+- `act/`: `patcher.py` proposes diffs; `actuator.py` safely applies diffs via temp clone, three-way merge, and per-hunk splitting, writing artifacts to `logs/`.
 - `verify/`: `static.py`, `tests.py`, `runtime.py` run gates.
 - `update/`: `updater.py` records lessons, updates graph.
 - `tools/`: `code_graph.py` repo symbol graph (ctags/tree-sitter later).
@@ -44,7 +44,7 @@ Implemented minimal verifiers:
 - `verify/tests.py`: runs `pytest -q --maxfail=1`, accepts `-k` patterns.
 - `verify/runtime.py`: placeholder (add your smoke checks).
 
-Run all verifiers:
+Run all verifiers (artifacts saved under `logs/`, including `junit.xml` and coverage):
 ```bash
 make verify
 ```
@@ -62,7 +62,7 @@ Current stubs always pass. Replace bodies:
 - `verify/runtime.py`: run a smoke CLI or HTTP mock.
 
 ### Sandbox
-`configs/sandbox.yaml` defines an offline container profile (python:3.11-slim). Integrate your Docker/Podman runner to execute verifiers inside the sandbox before merging patches.
+`configs/sandbox.yaml` defines an offline container profile (python:3.11-slim). `sandbox/docker_runner.py` attempts to run commands inside Docker with network disabled and CPU/RAM caps; falls back to local if Docker is unavailable.
 
 ### Patcher
 `act/patcher.py` should emit unified diffs (git-style), dry-run apply in a temp copy of the repo, then hand off to verifiers. On reject/conflict, narrow the patch and re-propose.

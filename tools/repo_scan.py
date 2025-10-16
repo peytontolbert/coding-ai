@@ -8,5 +8,3 @@ def ripgrep(pattern: str, path: str = ".") -> List[str]:
         return out.splitlines()
     except Exception:
         return []
-
-
