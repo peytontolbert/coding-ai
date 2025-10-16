@@ -9,6 +9,7 @@ from act.patcher import propose_and_apply
 from verify.static import run_static
 from verify.runtime import run_runtime
 from update.updater import update_memory
+from obs.logger import JsonLogger
 
 
 class Cfg:
@@ -47,8 +48,11 @@ def run_task(task: str) -> dict:
     # Export per-step timeout for verifiers
     os.environ["PER_STEP_SECONDS"] = str(int(cfg.per_step_seconds))
 
-    graph = CodeGraph.load_or_build("./repo")
-    llm = LLMClient()
+    logger = JsonLogger()
+    with logger.step("codegraph_build"):
+        graph = CodeGraph.load_or_build("./repo")
+    with logger.step("llm_init"):
+        llm = LLMClient()
     state = {"loops": 0}
     start = time.time()
 
@@ -56,11 +60,14 @@ def run_task(task: str) -> dict:
         return max(0.0, cfg.total_seconds - (time.time() - start))
 
     while state["loops"] < cfg.max_refine_loops and _time_left() > 0:
-        p = plan(task=task, graph=graph)
-        diff = propose_and_apply(plan=p, graph=graph, llm=llm)
+        with logger.step("plan"):
+            p = plan(task=task, graph=graph)
+        with logger.step("propose_and_apply"):
+            diff = propose_and_apply(plan=p, graph=graph, llm=llm)
         if _time_left() <= 0:
             break
-        static_ok = run_static()
+        with logger.step("static"):
+            static_ok = run_static()
         if not static_ok:
             state["loops"] += 1
             continue
@@ -86,30 +93,41 @@ def run_task(task: str) -> dict:
                 nodeids = sorted(list(dict.fromkeys(nodes))) if nodes else None
         except Exception:
             nodeids = None
-        tests_ok = run_tests(test_patterns if test_patterns else None, nodeids=nodeids)
+        with logger.step("tests"):
+            tests_ok = run_tests(
+                test_patterns if test_patterns else None, nodeids=nodeids
+            )
         # Escalate scope: if selective run failed, try plan patterns, then full suite
         if not tests_ok:
             escalated_ok = False
             # if we ran nodeids, retry with plan patterns
             if nodeids and (test_patterns or []):
-                escalated_ok = run_tests(test_patterns, nodeids=None)
+                with logger.step("tests_escalate_patterns"):
+                    escalated_ok = run_tests(test_patterns, nodeids=None)
             # final escalation: run full suite
             if not escalated_ok:
-                escalated_ok = run_tests(None, nodeids=None)
+                with logger.step("tests_escalate_full"):
+                    escalated_ok = run_tests(None, nodeids=None)
             if not escalated_ok:
                 state["loops"] += 1
                 continue
         if _time_left() <= 0:
             break
-        runtime_ok = run_runtime()
+        with logger.step("runtime"):
+            runtime_ok = run_runtime()
         if not runtime_ok:
             state["loops"] += 1
             continue
-        update_memory(
-            plan=p,
-            diff=diff,
-            verifiers={"static": static_ok, "tests": tests_ok, "runtime": runtime_ok},
-        )
+        with logger.step("memory_update"):
+            update_memory(
+                plan=p,
+                diff=diff,
+                verifiers={
+                    "static": static_ok,
+                    "tests": tests_ok,
+                    "runtime": runtime_ok,
+                },
+            )
         return {"status": "pass", "diff": diff}
     return {"status": "fail"}
 
