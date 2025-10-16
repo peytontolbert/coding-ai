@@ -2,9 +2,12 @@ import os as _os
 import subprocess
 from typing import List, Optional
 import os
+from sandbox.docker_runner import run_in_sandbox
 
 
-def run_tests(select_patterns: Optional[List[str]] = None, *, nodeids: Optional[List[str]] = None) -> bool:
+def run_tests(
+    select_patterns: Optional[List[str]] = None, *, nodeids: Optional[List[str]] = None
+) -> bool:
     # Save junit xml to logs/ and coverage xml for later gating
     junit_path = "logs/junit.xml"
     try:
@@ -34,19 +37,32 @@ def run_tests(select_patterns: Optional[List[str]] = None, *, nodeids: Optional[
     if (not nodeids) and select_patterns:
         for pat in select_patterns:
             args.extend(["-k", pat])
+    # Prefer sandbox when enabled in configs/sandbox.yaml, else local
     try:
+        # Run inside container with repo mounted at /work
         timeout = None
         try:
             timeout = int(_os.environ.get("PER_STEP_SECONDS", "0") or 0) or None
         except Exception:
             timeout = None
-        res = subprocess.run(
+        rc = run_in_sandbox(
             args,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
+            mounts=[{"source": os.getcwd(), "target": "/work"}],
+            env={},
+            timeout=timeout or None,
+            workdir="/work",
         )
-        return res.returncode == 0
+        if rc != 0:
+            return False
+        return True
     except Exception:
-        return False
+        try:
+            res = subprocess.run(
+                args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return res.returncode == 0
+        except Exception:
+            return False

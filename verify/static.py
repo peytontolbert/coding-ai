@@ -2,6 +2,7 @@ import subprocess
 import shutil
 from typing import List
 import os
+from sandbox.docker_runner import run_in_sandbox
 
 
 def _run(cmd: List[str]) -> bool:
@@ -11,16 +12,24 @@ def _run(cmd: List[str]) -> bool:
             timeout = int(os.environ.get("PER_STEP_SECONDS", "0") or 0) or None
         except Exception:
             timeout = None
-        res = subprocess.run(
+        rc = run_in_sandbox(
             cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
+            mounts=[{"source": os.getcwd(), "target": "/work"}],
+            env={},
+            timeout=timeout or None,
+            workdir="/work",
         )
-        return res.returncode == 0
+        if rc != 0:
+            return False
+        return True
     except Exception:
-        return False
+        try:
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            return res.returncode == 0
+        except Exception:
+            return False
 
 
 def run_static() -> bool:
