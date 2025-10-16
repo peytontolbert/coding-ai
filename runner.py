@@ -87,9 +87,18 @@ def run_task(task: str) -> dict:
         except Exception:
             nodeids = None
         tests_ok = run_tests(test_patterns if test_patterns else None, nodeids=nodeids)
+        # Escalate scope: if selective run failed, try plan patterns, then full suite
         if not tests_ok:
-            state["loops"] += 1
-            continue
+            escalated_ok = False
+            # if we ran nodeids, retry with plan patterns
+            if nodeids and (test_patterns or []):
+                escalated_ok = run_tests(test_patterns, nodeids=None)
+            # final escalation: run full suite
+            if not escalated_ok:
+                escalated_ok = run_tests(None, nodeids=None)
+            if not escalated_ok:
+                state["loops"] += 1
+                continue
         if _time_left() <= 0:
             break
         runtime_ok = run_runtime()
