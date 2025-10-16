@@ -1,5 +1,6 @@
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from tools.code_graph import CodeGraph
+import os
 
 
 def _extract_modules_from_task(task: str) -> List[str]:
@@ -47,3 +48,37 @@ def plan(*, task: str, graph: Any) -> Dict[str, Any]:
         "tests_to_run": tests,
         "risks": [],
     }
+
+
+def impacted_from_diff(diff_text: str, graph: CodeGraph) -> Tuple[List[str], List[str]]:
+    files: List[str] = []
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            try:
+                part = line.split(" ", 1)[1].strip()
+                if part == "/dev/null":
+                    continue
+                if part.startswith("a/") or part.startswith("b/"):
+                    rel = part[2:]
+                else:
+                    rel = part
+                files.append(rel)
+            except Exception:
+                continue
+    modules: List[str] = []
+    for f in files:
+        try:
+            m = graph.module_for_file(os.path.join(graph.root, f))
+            if m:
+                modules.append(m)
+        except Exception:
+            continue
+    modules = list(dict.fromkeys(modules))
+    # Reverse importers
+    rev = set()
+    for m in modules:
+        for mod, deps in getattr(graph, "module_imports", {}).items():
+            if m in deps or m.split(".")[0] in deps:
+                rev.add(mod)
+    impacted = sorted(set(modules) | rev)
+    return files, impacted
