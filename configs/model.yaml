@@ -1,0 +1,7 @@
+routes:
+  default:
+    provider: "local"
+    model: "stub-coder"
+    temperature: 0.2
+
+

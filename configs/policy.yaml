@@ -1,0 +1,19 @@
+gates:
+  static:
+    - cmd: ["ruff", "check", "."]
+    - cmd: ["black", "--check", "."]
+    - cmd: ["mypy", "--strict", "."]
+  tests:
+    - cmd: ["pytest", "-q", "--maxfail=1", "-k", "not e2e"]
+  runtime:
+    - cmd: ["python", "scripts/smoke.py"]
+budgets:
+  total_seconds: 900
+  per_step_seconds: 120
+  max_refine_loops: 4
+merge_policy:
+  require_coverage: 0.75
+  require_all_gates: true
+  branch_prefix: "ai/"
+
+

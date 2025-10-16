@@ -1,0 +1,15 @@
+image: "python:3.11-slim"
+limits:
+  cpus: "2"
+  memory: "4g"
+  pids: 512
+network: "off"
+mounts:
+  - type: "bind"
+    source: "./repo"
+    target: "/workspace"
+env:
+  - "PYTHONDONTWRITEBYTECODE=1"
+  - "PYTHONUNBUFFERED=1"
+
+
