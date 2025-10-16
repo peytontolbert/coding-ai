@@ -6,3 +6,4 @@ __pycache__/
 .coverage
 logs/
 *.db
+.codegraph.json
