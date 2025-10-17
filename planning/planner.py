@@ -41,11 +41,22 @@ def plan(*, task: str, graph: Any) -> Dict[str, Any]:
     except Exception:
         impacted = mods
     tests = _tests_for_modules(graph, impacted)
+    # Also compute minimal pytest nodeids if graph has mapping
+    nodeids: List[str] = []
+    try:
+        m2n = getattr(graph, "pytest_nodes_by_module", {}) or {}
+        for m in impacted:
+            for n in m2n.get(m, []):
+                nodeids.append(n)
+        nodeids = sorted(list(dict.fromkeys(nodeids)))
+    except Exception:
+        nodeids = []
     return {
         "objective": task,
         "files": [],
         "invariants": [],
         "tests_to_run": tests,
+        "nodeids": nodeids,
         "risks": [],
     }
 

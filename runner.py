@@ -91,6 +91,10 @@ def run_task(task: str) -> dict:
                 for m in impacted:
                     nodes.extend(graph.pytest_nodes_by_module.get(m, []))
                 nodeids = sorted(list(dict.fromkeys(nodes))) if nodes else None
+            # If no diff-derived nodeids, use planner-provided nodeids
+            if not nodeids:
+                nid = p.get("nodeids", []) if isinstance(p.get("nodeids", []), list) else []
+                nodeids = nid or None
         except Exception:
             nodeids = None
         with logger.step("tests"):
