@@ -1,0 +1,24 @@
+line-length = 88
+target-version = "py311"
+extend-exclude = [
+    "repo",
+    ".mypy_cache",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+]
+
+[lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "C90"]
+ignore = [
+    # Let the formatter handle wrapping
+    "E501",
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+

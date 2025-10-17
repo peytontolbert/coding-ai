@@ -11,6 +11,8 @@ def run_in_sandbox(
     env: Dict[str, str] | None = None,
     timeout: int | None = None,
     workdir: Optional[str] = None,
+    capture_stdout_file: Optional[str] = None,
+    capture_stderr_file: Optional[str] = None,
 ) -> int:
     # Read sandbox config
     cfg_path = Path(os.getcwd()) / "configs" / "sandbox.yaml"
@@ -98,12 +100,47 @@ def run_in_sandbox(
                 text=True,
                 timeout=timeout or None,
             )
+            # Optionally persist outputs for callers that need logs
+            try:
+                if capture_stdout_file is not None:
+                    os.makedirs(os.path.dirname(capture_stdout_file) or ".", exist_ok=True)
+                    with open(capture_stdout_file, "w", encoding="utf-8") as f_out:
+                        f_out.write(p.stdout or "")
+                if capture_stderr_file is not None:
+                    os.makedirs(os.path.dirname(capture_stderr_file) or ".", exist_ok=True)
+                    with open(capture_stderr_file, "w", encoding="utf-8") as f_err:
+                        f_err.write(p.stderr or "")
+            except Exception:
+                # Best-effort logging; ignore failures
+                pass
             return int(p.returncode)
         except Exception:
             return 1
 
     # Local fallback
     try:
+        if capture_stdout_file is not None or capture_stderr_file is not None:
+            p = subprocess.run(
+                cmd,
+                env={**os.environ, **(env or {})},
+                timeout=timeout or None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                if capture_stdout_file is not None:
+                    os.makedirs(os.path.dirname(capture_stdout_file) or ".", exist_ok=True)
+                    with open(capture_stdout_file, "w", encoding="utf-8") as f_out:
+                        f_out.write(p.stdout or "")
+                if capture_stderr_file is not None:
+                    os.makedirs(os.path.dirname(capture_stderr_file) or ".", exist_ok=True)
+                    with open(capture_stderr_file, "w", encoding="utf-8") as f_err:
+                        f_err.write(p.stderr or "")
+            except Exception:
+                pass
+            return int(p.returncode)
+        # No capture requested; run as before
         res = subprocess.run(
             cmd, env={**os.environ, **(env or {})}, timeout=timeout or None
         )
