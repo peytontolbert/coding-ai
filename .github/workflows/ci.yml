@@ -19,19 +19,47 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
+      - name: Cache mypy
+        uses: actions/cache@v4
+        with:
+          path: |
+            repo/.mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('repo/mypy.ini') }}-${{ hashFiles('repo/**.py') }}
+          restore-keys: |
+            mypy-${{ runner.os }}-${{ hashFiles('repo/mypy.ini') }}-
+            mypy-${{ runner.os }}-
+      - name: Cache ruff
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/ruff
+          key: ruff-${{ runner.os }}-${{ hashFiles('repo/.ruff.toml') }}-${{ hashFiles('repo/**.py') }}
+          restore-keys: |
+            ruff-${{ runner.os }}-${{ hashFiles('repo/.ruff.toml') }}-
+            ruff-${{ runner.os }}-
       - name: Install deps
+        working-directory: repo
         run: |
           python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
           pip install pytest pytest-cov ruff black mypy pyyaml transformers torch --extra-index-url https://download.pytorch.org/whl/cpu
       - name: Build CodeGraph (no-cache)
+        working-directory: repo
         run: |
           python -m tools.code_graph ./repo --no-cache --dump || true
       - name: Run verify script
+        working-directory: repo
         run: bash scripts/ci_verify.sh
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: logs
-          path: logs
+          path: repo/logs
+      - name: Always upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: repo/logs/report.html
 
